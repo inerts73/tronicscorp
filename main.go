@@ -1,4 +1,4 @@
-// 34/51
+// 35/51
 
 package main
 
@@ -13,7 +13,13 @@ import (
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/labstack/gommon/random"
 	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+const (
+	// CorrelationID is a request id unique to the request being made
+	CorrelationID = "X-Correlation-ID"
 )
 
 var (
@@ -36,9 +42,29 @@ func init() {
 	col = db.Collection(cfg.CollectionName)
 }
 
+func addCorrelationID(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context)error{
+		// generate correlation id
+		id := c.Request().Header.Get(CorrelationID)
+		var newID string
+		if id == "" {
+			//generate a random number
+			newID = random.String(12)
+		} else {
+			newID = id
+		}
+
+		c.Request().Header.Set(CorrelationID, newID)
+		c.Response().Header().Set(CorrelationID, newID)
+		return next(c)	
+	}
+}
+
 func main() {
 	e := echo.New()
 	e.Pre(middleware.RemoveTrailingSlash())
+	middleware.RequestID()
+	e.Pre(addCorrelationID)
 	h := handlers.ProductHandler{Col: col}
 	e.POST("/products", h.CreateProducts, middleware.BodyLimit("1M"))
 	e.Logger.Infof("Listening on %s:%s", cfg.Host, cfg.Port)
