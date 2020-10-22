@@ -1,11 +1,10 @@
-// 35/51
+// 36/51
 
 package main
 
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/inerts73/tronicscorp/config"
@@ -14,6 +13,7 @@ import (
 	"github.com/labstack/echo/middleware"
 	"go.mongodb.org/mongo-driver/mongo"
 	"github.com/labstack/gommon/random"
+	"github.com/labstack/gommon/log"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -62,11 +62,13 @@ func addCorrelationID(next echo.HandlerFunc) echo.HandlerFunc {
 
 func main() {
 	e := echo.New()
+	e.Logger.SetLevel(log.ERROR)
 	e.Pre(middleware.RemoveTrailingSlash())
 	middleware.RequestID()
 	e.Pre(addCorrelationID)
 	h := handlers.ProductHandler{Col: col}
 	e.POST("/products", h.CreateProducts, middleware.BodyLimit("1M"))
+	e.GET("/products", h.GetProducts)
 	e.Logger.Infof("Listening on %s:%s", cfg.Host, cfg.Port)
 	e.Logger.Fatal(e.Start(fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)))
 }
