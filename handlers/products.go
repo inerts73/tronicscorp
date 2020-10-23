@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -50,19 +52,74 @@ func findProducts(ctx context.Context, q url.Values, collection dbiface.Collecti
 	for k,v := range q{
 		filter[k]=v[0]	
 	}
+	if filter["_id"] != nil {
+		docID, err := primitive.ObjectIDFromHex(filter["_id"].(string))	
+		if err != nil {
+			return products, err
+		}
+		filter["_id"] = docID
+	}
 	cursor, err := collection.Find(ctx, bson.M(filter))
 	if err != nil {
 		log.Errorf("Unable to find the products : %v", err)	
+		return products, err
 	}
 	err = cursor.All(ctx, &products)
 	if err != nil {
 		log.Errorf("Unable to read the cursor : %v", err)	
+		return products, err
 	}
 	return products, nil
 }
 
+func modifyProduct(ctx context.Context, id string, reqBody io.ReadCloser, collection dbiface.CollectionAPI) (Product, error) {
+	var product Product
+	//find if he product exists, if err return 404
+	docID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		log.Errorf("cannot convert to objectid :%v", err)
+		return product, err //500 error code
+	}
+	filter := bson.M{"_id": docID}
+	res := collection.FindOne(ctx, filter)
+	if err := res.Decode(&product); err != nil {
+		log.Errorf("unable to decode to product :%v", err)
+		return product, err
+	}
+
+	//decode the req payload, if err return 500
+	if err := json.NewDecoder(reqBody).Decode(&product); err != nil {
+		log.Errorf("unable to decode using reqBody : %v", err)
+		return product, err
+	}
+
+	//validate the request, if err return 400
+	if err := v.Struct(product); err != nil {
+		log.Errorf("unable to validate the struct : %v", err)		
+		return product, err
+	}
+
+	//update the product, if err return 500
+	_, err = collection.UpdateOne(ctx, filter, bson.M{"$set":product})
+	if err != nil {
+		log.Errorf("unable to validate the struct : %v", err)	
+		return product, err
+	}
+	return product, nil
+}
+
+//UpdateProduct updates a product
+func (h *ProductHandler) UpdateProduct(c echo.Context) error {
+	product, err := modifyProduct(context.Background(), c.Param("id"), c.Request().Body, h.Col)
+	if err != nil {
+		log.Errorf("unable to update the product : %v", err)	
+		return err
+	}
+	return c.JSON(http.StatusOK, product)
+}
+
 //GetProducts get a list of products
-func (h ProductHandler) GetProducts(c echo.Context) error {
+func (h *ProductHandler) GetProducts(c echo.Context) error {
 	products, err := findProducts(context.Background(), c.QueryParams(), h.Col)
 	if err != nil {
 		return err

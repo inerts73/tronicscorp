@@ -1,4 +1,4 @@
-// 39/51
+// 40/51
 
 package main
 
@@ -66,7 +66,8 @@ func main() {
 	e.Pre(middleware.RemoveTrailingSlash())
 	middleware.RequestID()
 	e.Pre(addCorrelationID)
-	h := handlers.ProductHandler{Col: col}
+	h := &handlers.ProductHandler{Col: col}
+	e.PUT("/products/:id", h.UpdateProduct, middleware.BodyLimit("1M"))
 	e.POST("/products", h.CreateProducts, middleware.BodyLimit("1M"))
 	e.GET("/products", h.GetProducts)
 	e.Logger.Infof("Listening on %s:%s", cfg.Host, cfg.Port)
