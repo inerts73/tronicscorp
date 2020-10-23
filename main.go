@@ -1,4 +1,4 @@
-// 40/51
+// 41/51
 
 package main
 
@@ -67,6 +67,8 @@ func main() {
 	middleware.RequestID()
 	e.Pre(addCorrelationID)
 	h := &handlers.ProductHandler{Col: col}
+	e.GET("/products/:id", h.GetProduct)
+	e.DELETE("/products/:id", h.DeleteProduct)
 	e.PUT("/products/:id", h.UpdateProduct, middleware.BodyLimit("1M"))
 	e.POST("/products", h.CreateProducts, middleware.BodyLimit("1M"))
 	e.GET("/products", h.GetProducts)
