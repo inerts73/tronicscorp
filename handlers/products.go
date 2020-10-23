@@ -3,13 +3,14 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"net/url"
 
 	"github.com/inerts73/tronicscorp/dbiface"
-	"gopkg.in/go-playground/validator.v9"
-	"github.com/labstack/gommon/log"
 	"github.com/labstack/echo"
+	"github.com/labstack/gommon/log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gopkg.in/go-playground/validator.v9"
 )
 
 var (
@@ -43,9 +44,13 @@ func (p *ProductValidator) Validate(i interface{}) error {
 	return p.validator.Struct(i)
 }
 
-func findProducts(ctx context.Context, collection dbiface.CollectionAPI)([]Product, error){
+func findProducts(ctx context.Context, q url.Values, collection dbiface.CollectionAPI)([]Product, error){
 	var products []Product
-	cursor, err := collection.Find(ctx, bson.M{})
+	filter := make(map[string] interface{})
+	for k,v := range q{
+		filter[k]=v[0]	
+	}
+	cursor, err := collection.Find(ctx, bson.M(filter))
 	if err != nil {
 		log.Errorf("Unable to find the products : %v", err)	
 	}
@@ -58,7 +63,7 @@ func findProducts(ctx context.Context, collection dbiface.CollectionAPI)([]Produ
 
 //GetProducts get a list of products
 func (h ProductHandler) GetProducts(c echo.Context) error {
-	products, err := findProducts(context.Background(), h.Col)
+	products, err := findProducts(context.Background(), c.QueryParams(), h.Col)
 	if err != nil {
 		return err
 	}
