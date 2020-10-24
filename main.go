@@ -1,4 +1,4 @@
-// 44/51
+// 45/51
 
 package main
 
@@ -95,6 +95,7 @@ func main() {
 	e.GET("/products", h.GetProducts)
 
 	e.POST("/users", uh.CreateUser)
+	e.POST("/auth", uh.AuthnUser)
 	e.Logger.Infof("Listening on %s:%s", cfg.Host, cfg.Port)
 	e.Logger.Fatal(e.Start(fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)))
 }
