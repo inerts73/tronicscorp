@@ -1,4 +1,4 @@
-// 41/51
+// 43/51
 
 package main
 
@@ -66,6 +66,10 @@ func main() {
 	e.Pre(middleware.RemoveTrailingSlash())
 	middleware.RequestID()
 	e.Pre(addCorrelationID)
+	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+		Format: `${time_rfc3339_nano} ${remote_ip} ${host} ${method} ${uri} ${user_agent} ` +
+			`${status} ${error} ${latency_human}` + "\n",	
+	}))
 	h := &handlers.ProductHandler{Col: col}
 	e.GET("/products/:id", h.GetProduct)
 	e.DELETE("/products/:id", h.DeleteProduct)
