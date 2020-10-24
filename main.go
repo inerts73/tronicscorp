@@ -1,10 +1,13 @@
-// 43/51
+// 44/51
 
 package main
 
 import (
 	"context"
 	"fmt"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"	
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/inerts73/tronicscorp/config"
@@ -14,7 +17,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"github.com/labstack/gommon/random"
 	"github.com/labstack/gommon/log"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -25,7 +27,8 @@ const (
 var (
 	c   *mongo.Client
 	db  *mongo.Database
-	col *mongo.Collection
+	prodCol *mongo.Collection
+	usersCol *mongo.Collection
 	cfg config.Properties
 )
 
@@ -39,7 +42,20 @@ func init() {
 		log.Fatal("Unable tp connect to database: %w", err)
 	}
 	db = c.Database(cfg.DBName)
-	col = db.Collection(cfg.CollectionName)
+	prodCol = db.Collection(cfg.ProductCollection)
+	usersCol = db.Collection(cfg.UsersCollection)
+
+	isUserIndexUnique := true
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{{"username", 1}},
+		Options: &options.IndexOptions{
+			Unique: &isUserIndexUnique,
+		},
+	}
+	_, err = usersCol.Indexes().CreateOne(context.Background(), indexModel)
+	if err != nil {
+		log.Fatalf("Unable to create an index : %+v", err)
+	}
 }
 
 func addCorrelationID(next echo.HandlerFunc) echo.HandlerFunc {
@@ -67,15 +83,18 @@ func main() {
 	middleware.RequestID()
 	e.Pre(addCorrelationID)
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-		Format: `${time_rfc3339_nano} ${remote_ip} ${host} ${method} ${uri} ${user_agent} ` +
+		Format: `${time_rfc3339_nano} ${remote_ip} ${header:X-Correlation-ID} ${host} ${method} ${uri} ${user_agent} ` +
 			`${status} ${error} ${latency_human}` + "\n",	
 	}))
-	h := &handlers.ProductHandler{Col: col}
+	h := &handlers.ProductHandler{Col: prodCol}
+	uh := &handlers.UsersHandler{Col: usersCol}
 	e.GET("/products/:id", h.GetProduct)
 	e.DELETE("/products/:id", h.DeleteProduct)
 	e.PUT("/products/:id", h.UpdateProduct, middleware.BodyLimit("1M"))
 	e.POST("/products", h.CreateProducts, middleware.BodyLimit("1M"))
 	e.GET("/products", h.GetProducts)
+
+	e.POST("/users", uh.CreateUser)
 	e.Logger.Infof("Listening on %s:%s", cfg.Host, cfg.Port)
 	e.Logger.Fatal(e.Start(fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)))
 }
