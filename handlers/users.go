@@ -108,6 +108,12 @@ func (h *UsersHandler) CreateUser(c echo.Context) error {
 		log.Errorf("Unable to insert to database.")
 		return err
 	}
+	token, er := createToken(user.Email)
+	if er != nil {
+		log.Errorf("Unable to generate the token.")
+		return echo.NewHTTPError(http.StatusInternalServerError, "Unable to generate the token")
+	}
+	c.Response().Header().Set("x-auth-token", "Bearer " + token)
 	return c.JSON(http.StatusCreated, insertedUserID)	
 }
 
@@ -153,6 +159,6 @@ func (h *UsersHandler) AuthnUser(c echo.Context) error {
 		log.Errorf("Unable to generate the token.")
 		return echo.NewHTTPError(http.StatusInternalServerError, "Unable to generate the token")
 	}
-	c.Response().Header().Set("x-auth-token", token)
+	c.Response().Header().Set("x-auth-token", "Bearer " + token)
 	return c.JSON(http.StatusOK, User{Email: user.Email})	
 }

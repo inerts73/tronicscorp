@@ -1,4 +1,4 @@
-// 45/51
+// 46/51
 
 package main
 
@@ -82,6 +82,10 @@ func main() {
 	e.Pre(middleware.RemoveTrailingSlash())
 	middleware.RequestID()
 	e.Pre(addCorrelationID)
+	jwtMiddleware := middleware.JWTWithConfig(middleware.JWTConfig{
+		SigningKey: []byte(cfg.JwtTokenSecret),
+		TokenLookup: "header:x-auth-token",
+	})
 	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: `${time_rfc3339_nano} ${remote_ip} ${header:X-Correlation-ID} ${host} ${method} ${uri} ${user_agent} ` +
 			`${status} ${error} ${latency_human}` + "\n",	
@@ -89,9 +93,9 @@ func main() {
 	h := &handlers.ProductHandler{Col: prodCol}
 	uh := &handlers.UsersHandler{Col: usersCol}
 	e.GET("/products/:id", h.GetProduct)
-	e.DELETE("/products/:id", h.DeleteProduct)
-	e.PUT("/products/:id", h.UpdateProduct, middleware.BodyLimit("1M"))
-	e.POST("/products", h.CreateProducts, middleware.BodyLimit("1M"))
+	e.DELETE("/products/:id", h.DeleteProduct, jwtMiddleware)
+	e.PUT("/products/:id", h.UpdateProduct, middleware.BodyLimit("1M"), jwtMiddleware)
+	e.POST("/products", h.CreateProducts, middleware.BodyLimit("1M"), jwtMiddleware)
 	e.GET("/products", h.GetProducts)
 
 	e.POST("/users", uh.CreateUser)
