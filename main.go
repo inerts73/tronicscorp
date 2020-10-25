@@ -1,22 +1,25 @@
-// 46/51
+// 47/51
 
 package main
 
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"	
+	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/inerts73/tronicscorp/config"
 	"github.com/inerts73/tronicscorp/handlers"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
-	"go.mongodb.org/mongo-driver/mongo"
-	"github.com/labstack/gommon/random"
 	"github.com/labstack/gommon/log"
+	"github.com/labstack/gommon/random"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
@@ -76,6 +79,24 @@ func addCorrelationID(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
+func adminMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		hToken := c.Request().Header.Get("x-auth-token") // Bearer xxxxxxx
+		token := strings.Split(hToken, " ")[1]
+		claims := jwt.MapClaims{}
+		_, err := jwt.ParseWithClaims(token, claims, func(*jwt.Token) (interface{}, error) {
+			return []byte(cfg.JwtTokenSecret), nil
+		})
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Unable to parse token")
+		}
+		if !claims["authorized"].(bool) {
+			return echo.NewHTTPError(http.StatusForbidden, "Not authorized")
+		}
+		return next(c)
+	}	
+}
+
 func main() {
 	e := echo.New()
 	e.Logger.SetLevel(log.ERROR)
@@ -93,7 +114,7 @@ func main() {
 	h := &handlers.ProductHandler{Col: prodCol}
 	uh := &handlers.UsersHandler{Col: usersCol}
 	e.GET("/products/:id", h.GetProduct)
-	e.DELETE("/products/:id", h.DeleteProduct, jwtMiddleware)
+	e.DELETE("/products/:id", h.DeleteProduct, jwtMiddleware, adminMiddleware)
 	e.PUT("/products/:id", h.UpdateProduct, middleware.BodyLimit("1M"), jwtMiddleware)
 	e.POST("/products", h.CreateProducts, middleware.BodyLimit("1M"), jwtMiddleware)
 	e.GET("/products", h.GetProducts)
